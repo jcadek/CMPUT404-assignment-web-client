@@ -33,36 +33,113 @@ class HTTPResponse(object):
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
-
+    def get_host_port(self,url):
+        split1 = re.split(":", url);
+        if(len(split1) == 2):
+            return int(split1[1]);
+        else:
+            return 80;
     def connect(self, host, port):
-        # use sockets!
-        return None
+        import socket
+
+    
+        clientSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        clientSocket.connect((host, port))
+        return clientSocket;
 
     def get_code(self, data):
-        return None
+        return int(re.findall("HTTP/1.[01] ([0-5][0-9][0-9])", data)[0]);
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        return re.split("\r\n\r\n",data,1)[1];None
+
+    def parseURL(self, url):
+        proto = '';
+        path = '';
+        query = '';
+        frag = '';
+        split1 = re.split('://', url);
+        if(len(split1) == 2):
+            proto = split1[0];
+        split2 = re.split('/', split1[-1],1);
+        
+        if(len(split2) == 1): 
+            split3 = re.split('\?', split2[-1],1);
+            if(len(split3) == 2):
+                host = split3[0];
+                split4 = re.split('#', split3[-1],1);
+                query = split4[0];
+                if(len(split4) == 2):
+                    frag = split4[1];frag = split4[1];
+            else:
+                split4 = re.split('#', split3[-1],1);
+                host = split4[0];
+                if(len(split4) == 2):
+                    frag = split4[1];frag = split4[1];
+        else:
+            host = split2[0];
+            split3 = re.split('\?', split2[-1],1);
+            if(len(split3) == 2):
+                path = split3[0];
+                split4 = re.split('#', split3[-1],1);
+                query = split4[0];
+                if(len(split4) == 2):
+                    frag = split4[1];
+            else:
+                split4 = re.split('#', split3[-1],1);
+                path = split4[0];
+                if(len(split4) == 2):
+                    frag = split4[1];frag = split4[1];
+        proto = proto + "://";
+        path = "/" + path;
+        port = self.get_host_port(host);
+        host = re.split(":",host)[0];
+        return [proto, host, port, path, query, frag];
+        
+        
+            
+        
 
     # read everything from the socket
     def recvall(self, sock):
-        buffer = bytearray()
+        buff = bytearray()
         done = False
         while not done:
+            print "Decision";
             part = sock.recv(1024)
             if (part):
-                buffer.extend(part)
+                print "A";
+                print part;
+                buff.extend(part)
             else:
+                print "B";
                 done = not part
-        return str(buffer)
+        return str(buff)
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        
+        proto, host, port, path, query, frag = self.parseURL(url);
+        print host;
+        print path;
+        sock = self.connect(host, port);
+        
+        body = "GET " +  path + " HTTP/1.1\r\n";
+        body = body + "Host: " + host + "\r\n";
+        body = body + "Connection: close\r\n";
+        body = body + "\r\n";
+        print "----"
+        print(body);
+        print "----"
+        sock.sendall(body)
+        buff = self.recvall(sock);
+        code= self.get_code(buff);
+        print buff;
+       
+        body = self.get_body(buff);
+        print body
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
@@ -71,6 +148,7 @@ class HTTPClient(object):
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
+        
         if (command == "POST"):
             return self.POST( url, args )
         else:
@@ -83,6 +161,7 @@ if __name__ == "__main__":
         help()
         sys.exit(1)
     elif (len(sys.argv) == 3):
-        print client.command( sys.argv[2], sys.argv[1] )
+        print client.command( sys.argv[2], sys.argv[1])
+        
     else:
         print client.command( sys.argv[1] )   
