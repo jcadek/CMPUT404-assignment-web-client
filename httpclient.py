@@ -40,23 +40,24 @@ class HTTPClient(object):
         else:
             return 80;
     def connect(self, host, port):
+        
         import socket
-
-    
         clientSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         clientSocket.connect((host, port))
         return clientSocket;
 
     def get_code(self, data):
+        print data;
         return int(re.findall("HTTP/1.[01] ([0-5][0-9][0-9])", data)[0]);
 
     def get_headers(self,data):
-        return None
+        return re.split("\r\n\r\n",data,1)[0];
 
     def get_body(self, data):
-        return re.split("\r\n\r\n",data,1)[1];None
+        return re.split("\r\n\r\n",data,1)[1];
 
     def parseURL(self, url):
+       
         proto = '';
         path = '';
         query = '';
@@ -93,6 +94,7 @@ class HTTPClient(object):
                 path = split4[0];
                 if(len(split4) == 2):
                     frag = split4[1];frag = split4[1];
+
         proto = proto + "://";
         path = "/" + path;
         port = self.get_host_port(host);
@@ -100,7 +102,16 @@ class HTTPClient(object):
         return [proto, host, port, path, query, frag];
         
         
+    def parseARGS(self, args):
+       
+        argout = ['']*len(args);
+        counter = 0;
+        for variable, index in args.iteritems():
             
+            argout[counter] = variable + "=" + index;
+            counter += 1;
+        return argout;
+       
         
 
     # read everything from the socket
@@ -108,47 +119,67 @@ class HTTPClient(object):
         buff = bytearray()
         done = False
         while not done:
-            print "Decision";
+            
             part = sock.recv(1024)
             if (part):
-                print "A";
-                print part;
+                
+                
                 buff.extend(part)
             else:
-                print "B";
+                
                 done = not part
         return str(buff)
 
     def GET(self, url, args=None):
-        
         proto, host, port, path, query, frag = self.parseURL(url);
         print host;
-        print path;
-        sock = self.connect(host, port);
-        
+        sock = self.connect(host, port);  
         body = "GET " +  path + " HTTP/1.1\r\n";
         body = body + "Host: " + host + "\r\n";
         body = body + "Connection: close\r\n";
         body = body + "\r\n";
-        print "----"
-        print(body);
-        print "----"
         sock.sendall(body)
         buff = self.recvall(sock);
         code= self.get_code(buff);
-        print buff;
-       
         body = self.get_body(buff);
         print body
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+
+        proto, host, port, path, query, frag = self.parseURL(url);
+        
+        argout = '';
+        if(args != None):
+            argsplit = self.parseARGS(args)
+           
+            for i in range(0,len(argsplit)):
+                if((i != 0) or (query != "")):
+                    argout = argout + "&";
+                argout = argout + argsplit[i];
+                
+        
+        
+        sock = self.connect(host, port);  
+        body = "POST " +  path + " HTTP/1.1\r\n";
+        body = body + "Host: " + host + "\r\n";
+        body = body + "Content-type: application/x-www-form-urlencoded\r\n";
+        body = body + "Connection: close\r\n";
+        body = body + "Content-length: " + str(len(query) + len(argout)) + "\r\n"
+        body = body + "\r\n";
+        body = body + query + argout + "\r\n";
+        
+        body = body + "\r\n";
+        sock.sendall(body)
+        buff = self.recvall(sock);
+        code= self.get_code(buff);
+        body = self.get_body(buff);
+        
+        print body
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
-        
+        print url, command, args;
         if (command == "POST"):
             return self.POST( url, args )
         else:
@@ -162,6 +193,9 @@ if __name__ == "__main__":
         sys.exit(1)
     elif (len(sys.argv) == 3):
         print client.command( sys.argv[2], sys.argv[1])
-        
+    elif (len(sys.argv) == 4):
+        print client.command( sys.argv[2], sys.argv[1], sys.argv[3])
     else:
-        print client.command( sys.argv[1] )   
+        print client.command( sys.argv[1] )
+     
+       
